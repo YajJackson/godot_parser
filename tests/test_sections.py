@@ -10,7 +10,6 @@ from godot_parser import (
 
 
 class TestGDSections(unittest.TestCase):
-
     """Tests for GD file sections"""
 
     def test_header_dunder(self):
@@ -27,12 +26,12 @@ class TestGDSections(unittest.TestCase):
     def test_section_dunder(self):
         """Tests for __magic__ methods on GDSection"""
         h = GDSectionHeader("node")
-        s = GDSection(h, vframes=10)
+        s = GDSection(h, properties={"vframes": 10})
         self.assertEqual(str(s), "[node]\nvframes = 10")
         self.assertEqual(repr(s), "GDSection([node]\nvframes = 10)")
         self.assertEqual(s["vframes"], 10)
 
-        s2 = GDSection(GDSectionHeader("node"), vframes=10)
+        s2 = GDSection(GDSectionHeader("node"), properties={"vframes": 10})
         self.assertEqual(s, s2)
         s2["vframes"] = 100
         self.assertNotEqual(s, s2)
@@ -44,7 +43,15 @@ class TestGDSections(unittest.TestCase):
 
     def test_ext_resource(self):
         """Test for GDExtResourceSection"""
-        s = GDExtResourceSection("res://Other.tscn", type="PackedScene", id=1)
+        header = GDSectionHeader(
+            title="ext_resource",
+            path="res://Other.tscn",
+            type="PackedScene",
+            id=1,
+        )
+        s = GDExtResourceSection(
+            header=header,
+        )
         self.assertEqual(s.path, "res://Other.tscn")
         self.assertEqual(s.type, "PackedScene")
         self.assertEqual(s.id, 1)
@@ -67,7 +74,10 @@ class TestGDSections(unittest.TestCase):
 
     def test_node(self):
         """Test for GDNodeSection"""
-        s = GDNodeSection("Sprite", type="Sprite", groups=["foo", "bar"])
+        header = GDSectionHeader(title="node", name="Sprite")
+        s = GDNodeSection(
+            header=header, properties={"type": "Sprite", "groups": ["foo", "bar"]}
+        )
         self.assertIsNone(s.instance)
         self.assertIsNone(s.index)
         self.assertEqual(s.type, "Sprite")

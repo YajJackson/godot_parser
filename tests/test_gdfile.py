@@ -1,7 +1,15 @@
 import tempfile
+from typing import Any
 import unittest
 
 from godot_parser import GDFile, GDObject, GDResource, GDResourceSection, GDScene, Node
+from godot_parser.objects import Vector2
+from godot_parser.sections import (
+    GDExtResourceSection,
+    GDSection,
+    GDSectionHeader,
+    GDSubResourceSection,
+)
 
 
 class TestGDFile(unittest.TestCase):
@@ -15,14 +23,15 @@ class TestGDFile(unittest.TestCase):
     def test_all_data_types(self):
         """Run the parsing test cases"""
         res = GDResource()
-        res.add_section(
-            GDResourceSection(
-                list=[1, 2.0, "string"],
-                map={"key": ["nested", GDObject("Vector2", 1, 1)]},
-                empty=None,
-                escaped='foo("bar")',
-            )
-        )
+        header = GDSectionHeader(title="gd_resource")
+        properties: dict[str, Any] = {
+            "list": [1, 2.0, "string"],
+            "map": {"key": ["nested", Vector2(1, 1)]},
+            "empty": None,
+            "escaped": 'foo("bar")',
+        }
+        section = GDSection(header=header, properties=properties)
+        res.add_section(section)
         self.assertEqual(
             str(res),
             """[gd_resource load_steps=1 format=2]
@@ -80,9 +89,9 @@ escaped = "foo(\\"bar\\")"
         """Test creating a scene with the tree API"""
         scene = GDScene()
         with scene.use_tree() as tree:
-            tree.root = Node("RootNode", type="Node2D")
+            tree.root = Node("RootNode", _type="Node2D")
             tree.root.add_child(
-                Node("Child", type="Area2D", properties={"visible": False})
+                Node("Child", _type="Area2D", properties={"visible": False})
             )
         self.assertEqual(
             str(scene),
@@ -99,11 +108,11 @@ visible = false
         """Test creating a scene with nested children using the tree API"""
         scene = GDScene()
         with scene.use_tree() as tree:
-            tree.root = Node("RootNode", type="Node2D")
-            child = Node("Child", type="Node")
+            tree.root = Node("RootNode", _type="Node2D")
+            child = Node("Child", _type="Node")
             tree.root.add_child(child)
-            child.add_child(Node("ChildChild", type="Node"))
-            child.add_child(Node("ChildChild2", type="Node"))
+            child.add_child(Node("ChildChild", _type="Node"))
+            child.add_child(Node("ChildChild2", _type="Node"))
         self.assertEqual(
             str(scene),
             """[gd_scene load_steps=1 format=2]
@@ -171,14 +180,19 @@ visible = false
         node["texture"] = res2.reference
         node["textures"] = [res2.reference]
         node["texture_map"] = {"tex": res2.reference}
-        node["texture_pool"] = GDObject("ResourcePool", res2.reference)
+        node["texture_pool"] = GDObject(name="ResourcePool", args=[res2.reference])
 
         s = scene.find_section(path="res://Res.tscn")
+        assert s is not None, "Shoud find res://Res.tscn"
+
         scene.remove_section(s)
         scene.renumber_resource_ids()
 
         s = scene.find_section("ext_resource")
-        self.assertEqual(s.id, 1)
+        assert s is not None, "Shoud find ext_resource section"
+        assert isinstance(s, GDExtResourceSection), "Should be a GDExtResourceSection"
+        assert s.header.id == 1, "Header should have id 1"
+
         self.assertEqual(node["texture"], s.reference)
         self.assertEqual(node["textures"][0], s.reference)
         self.assertEqual(node["texture_map"]["tex"], s.reference)
@@ -187,7 +201,7 @@ visible = false
     def test_remove_unused_resource(self):
         """Can remove unused resources"""
         scene = GDScene()
-        res = scene.add_ext_resource("res://Res.tscn", "PackedScene")
+        scene.add_ext_resource("res://Res.tscn", "PackedScene")
         scene.remove_unused_resources()
         resources = scene.get_sections("ext_resource")
         self.assertEqual(len(resources), 0)
@@ -199,14 +213,22 @@ visible = false
         self.assertEqual(res.id, 1)
         res2 = scene.add_sub_resource("AnimationNodeAnimation")
         self.assertEqual(res2.id, 2)
-        resource = GDResourceSection(shape=res2.reference)
+        properties = {
+            "shape": res.reference,
+        }
+        resource = GDResourceSection(properties=properties)
         scene.add_section(resource)
 
         s = scene.find_sub_resource(type="CircleShape2D")
+        assert s is not None, "Should find CircleShape2D"
+
         scene.remove_section(s)
         scene.renumber_resource_ids()
 
         s = scene.find_section("sub_resource")
+        assert s is not None, "Should find sub_resource section"
+        assert isinstance(s, GDSubResourceSection), "Should be a GDSubResourceSection"
+
         self.assertEqual(s.id, 1)
         self.assertEqual(resource["shape"], s.reference)
 
@@ -237,9 +259,10 @@ visible = false
 
     def test_file_equality(self):
         """Tests for GDFile == GDFile"""
-        s1 = GDScene(GDResourceSection())
-        s2 = GDScene(GDResourceSection())
+        s1 = GDScene(_sections=[GDResourceSection()])
+        s2 = GDScene(_sections=[GDResourceSection()])
         self.assertEqual(s1, s2)
         resource = s1.find_section("resource")
+        assert resource is not None, "Should find resource section"
         resource["key"] = "value"
         self.assertNotEqual(s1, s2)

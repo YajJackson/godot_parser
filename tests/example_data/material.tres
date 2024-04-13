@@ -1,0 +1,26 @@
+[gd_resource type="ShaderMaterial" load_steps=6 format=3 uid="uid://ddetnu8iw83ve"]
+
+[ext_resource type="Shader" path="res://assets/shaders/vertex_animation_shader.gdshader" id="1_acvbf"]
+[ext_resource type="Texture2D" uid="uid://ospqn753gfbj" path="res://assets/models/hethrak/vertex_animations/hit_1/normals.png" id="2_r6iqp"]
+[ext_resource type="Texture2D" uid="uid://c4psxu81vkvua" path="res://assets/models/hethrak/vertex_animations/hit_1/offsets.exr" id="3_6kggd"]
+
+[sub_resource type="PlaceholderTexture2D" id="PlaceholderTexture2D_rkedp"]
+
+[sub_resource type="PlaceholderTexture2D" id="PlaceholderTexture2D_kwd3o"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_acvbf")
+shader_parameter/start_frame = 0.0
+shader_parameter/end_frame = 23.0
+shader_parameter/time_scale = 1.0
+shader_parameter/specular = null
+shader_parameter/metallic = null
+shader_parameter/roughness = null
+shader_parameter/tint_colour_red = Color(1, 1, 1, 1)
+shader_parameter/tint_colour_green = Color(1, 1, 1, 1)
+shader_parameter/tint_colour_blue = Color(1, 1, 1, 1)
+shader_parameter/offset_map = ExtResource("3_6kggd")
+shader_parameter/normal_map = ExtResource("2_r6iqp")
+shader_parameter/texture_albedo = SubResource("PlaceholderTexture2D_rkedp")
+shader_parameter/texture_tintmask = SubResource("PlaceholderTexture2D_kwd3o")

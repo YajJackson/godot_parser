@@ -1,41 +1,61 @@
 import os
+from typing import Optional, Union
 import unittest
 
 from pyparsing import ParseException
 
 from godot_parser import GDFile, GDObject, GDSection, GDSectionHeader, Vector2, parse
+from godot_parser.files import GDResource
 
 HERE = os.path.dirname(__file__)
 
 TEST_CASES = [
     (
         "[gd_scene load_steps=5 format=2]",
-        GDFile(GDSection(GDSectionHeader("gd_scene", load_steps=5, format=2))),
+        GDFile(
+            _sections=[
+                GDSection(header=GDSectionHeader("gd_scene", load_steps=5, format=2))
+            ]
+        ),
     ),
     (
         "[gd_resource load_steps=5 format=2]",
-        GDFile(GDSection(GDSectionHeader("gd_resource", load_steps=5, format=2))),
+        GDFile(
+            _sections=[
+                GDSection(GDSectionHeader("gd_resource", load_steps=5, format=2))
+            ]
+        ),
     ),
     (
         '[ext_resource path="res://Sample.tscn" type="PackedScene" id=1]',
         GDFile(
-            GDSection(
-                GDSectionHeader(
-                    "ext_resource", path="res://Sample.tscn", type="PackedScene", id=1
+            _sections=[
+                GDSection(
+                    GDSectionHeader(
+                        "ext_resource",
+                        path="res://Sample.tscn",
+                        type="PackedScene",
+                        id=1,
+                    )
                 )
-            )
+            ]
         ),
     ),
     (
         """[gd_scene load_steps=5 format=2]
     [ext_resource path="res://Sample.tscn" type="PackedScene" id=1]""",
         GDFile(
-            GDSection(GDSectionHeader("gd_scene", load_steps=5, format=2)),
-            GDSection(
-                GDSectionHeader(
-                    "ext_resource", path="res://Sample.tscn", type="PackedScene", id=1
-                )
-            ),
+            _sections=[
+                GDSection(GDSectionHeader("gd_scene", load_steps=5, format=2)),
+                GDSection(
+                    GDSectionHeader(
+                        "ext_resource",
+                        path="res://Sample.tscn",
+                        type="PackedScene",
+                        id=1,
+                    )
+                ),
+            ]
         ),
     ),
     (
@@ -45,12 +65,18 @@ TEST_CASES = [
         "with spaces" = 1
             """,
         GDFile(
-            GDSection(
-                GDSectionHeader("sub_resource", type="RectangleShape2D", id=1),
-                extents=Vector2(12.7855, 17.0634),
-                other=None,
-                **{"with spaces": 1}
-            )
+            _sections=[
+                GDSection(
+                    header=GDSectionHeader(
+                        "sub_resource", type="RectangleShape2D", id=1
+                    ),
+                    properties={
+                        "extents": Vector2(12.7855, 17.0634),
+                        "other": None,
+                        **{"with spaces": 1},
+                    },
+                )
+            ]
         ),
     ),
     (
@@ -61,23 +87,31 @@ TEST_CASES = [
     "values": [ Vector2( 0, 0 ), Vector2( 1, 0 ) ]
     }""",
         GDFile(
-            GDSection(
-                GDSectionHeader("sub_resource", type="Animation", id=2),
-                **{
-                    "tracks/0/keys": {
-                        "transitions": GDObject("PoolRealArray", 1, 1),
-                        "update": 0,
-                        "values": [Vector2(0, 0), Vector2(1, 0)],
-                    }
-                }
-            )
+            _sections=[
+                GDSection(
+                    GDSectionHeader("sub_resource", type="Animation", id=2),
+                    properties={
+                        "tracks/0/keys": {
+                            "transitions": GDObject(name="PoolRealArray", args=[1, 1]),
+                            "update": 0,
+                            "values": [Vector2(0, 0), Vector2(1, 0)],
+                        }
+                    },
+                )
+            ]
         ),
     ),
     (
         """[resource]
     0/name = "Sand"
         """,
-        GDFile(GDSection(GDSectionHeader("resource"), **{"0/name": "Sand"})),
+        GDFile(
+            _sections=[
+                GDSection(
+                    header=GDSectionHeader("resource"), properties={"0/name": "Sand"}
+                )
+            ]
+        ),
     ),
     (
         """[node name="Label" parent="." groups=["foo", "bar"]]
@@ -85,12 +119,14 @@ TEST_CASES = [
     "
     """,
         GDFile(
-            GDSection(
-                GDSectionHeader(
-                    "node", name="Label", parent=".", groups=["foo", "bar"]
-                ),
-                text="Hello\n    ",
-            )
+            _sections=[
+                GDSection(
+                    header=GDSectionHeader(
+                        title="node", name="Label", parent=".", groups=["foo", "bar"]
+                    ),
+                    properties={"text": "Hello\n    "},
+                )
+            ]
         ),
     ),
     (
@@ -100,25 +136,29 @@ TEST_CASES = [
     0:0/0/physics_layer_0/angular_velocity = 0.0
     """,
         GDFile(
-            GDSection(
-                GDSectionHeader("sub_resource", type="TileSetAtlasSource", id=2),
-                **{
-                    "0:0/0": 0,
-                    "0:0/0/physics_layer_0/linear_velocity": Vector2(0, 0),
-                    "0:0/0/physics_layer_0/angular_velocity": 0.0,
-                }
-            )
+            _sections=[
+                GDSection(
+                    header=GDSectionHeader(
+                        title="sub_resource", type="TileSetAtlasSource", id=2
+                    ),
+                    properties={
+                        "0:0/0": 0,
+                        "0:0/0/physics_layer_0/linear_velocity": Vector2(0, 0),
+                        "0:0/0/physics_layer_0/angular_velocity": 0.0,
+                    },
+                )
+            ]
         ),
     ),
 ]
 
 
 class TestParser(unittest.TestCase):
-
     """ """
 
     def _run_test(self, string: str, expected):
         """Run a set of tests"""
+        parse_result: Optional[Union[GDFile, GDResource]] = None
         try:
             parse_result = parse(string)
             if expected == "error":

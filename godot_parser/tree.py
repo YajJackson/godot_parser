@@ -34,10 +34,9 @@ class Node:
 
     section: Optional[GDNodeSection] = None
 
-    _groups: List[str] = field(default_factory=list)
-    _children: List["Node"] = field(default_factory=list)
-
-    properties: OrderedDict = field(default_factory=OrderedDict)
+    _groups: list[str] = field(default_factory=list)
+    _children: list["Node"] = field(default_factory=list)
+    properties: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         if self.section is None:

@@ -1,6 +1,4 @@
-import re
-from collections import OrderedDict
-from typing import Any, List, Optional, Type, TypeVar
+from typing import Any, List, Optional, TypeVar
 from dataclasses import dataclass, field
 
 
@@ -16,10 +14,6 @@ __all__ = [
     "GDResourceSection",
 ]
 
-GDSectionType = TypeVar("GDSectionType", bound="GDSection")
-
-GD_SECTION_REGISTRY = {}
-
 
 @dataclass
 class GDSectionHeader:
@@ -31,7 +25,8 @@ class GDSectionHeader:
         [node name="Sprite" type="Sprite" index="3"]
     """
 
-    name: str
+    title: str
+    name: Optional[str] = None
     id: Optional[int] = None
     path: Optional[str] = None
     type: Optional[str] = None
@@ -41,7 +36,7 @@ class GDSectionHeader:
     index: Optional[str] = None
     instance: Optional[ExtResource] = None
     groups: Optional[List[str]] = None
-    attributes: OrderedDict[str, Any] = field(default_factory=OrderedDict)
+    attributes: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         if self.id is not None:
@@ -55,30 +50,14 @@ class GDSectionHeader:
         if self.load_steps is not None:
             self.attributes["load_steps"] = self.load_steps
 
-    def __getitem__(self, k: str) -> Any:
-        return self.attributes[k]
-
-    def __setitem__(self, k: str, v: Any) -> None:
-        self.attributes[k] = v
-
-    def __delitem__(self, k: str):
-        try:
-            del self.attributes[k]
-        except KeyError:
-            pass
-
     def get(self, k: str, default: Any = None) -> Any:
         return self.attributes.get(k, default)
 
     @classmethod
     def from_parser(cls, parse_result) -> "GDSectionHeader":
         print(f"DEBUG | parse_result: {parse_result}")
-        header = cls(
-            id=parse_result[0],
-            name=parse_result[0],
-            path=parse_result[0],
-            type=parse_result[0],
-        )
+        title = parse_result[0]
+        header = cls(title)
         for attribute in parse_result[1:]:
             header.attributes[attribute[0]] = attribute[1]
         return header
@@ -92,7 +71,19 @@ class GDSectionHeader:
                     for k, v in self.attributes.items()
                 ]
             )
-        return "[" + self.name + attribute_str + "]"
+        return "[" + self.title + attribute_str + "]"
+
+    def __getitem__(self, k: str) -> Any:
+        return self.attributes[k]
+
+    def __setitem__(self, k: str, v: Any) -> None:
+        self.attributes[k] = v
+
+    def __delitem__(self, k: str):
+        try:
+            del self.attributes[k]
+        except KeyError:
+            pass
 
     def __repr__(self) -> str:
         return f"GDSectionHeader({self})"
@@ -100,7 +91,7 @@ class GDSectionHeader:
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, GDSectionHeader):
             return False
-        return self.name == other.name and self.attributes == other.attributes
+        return self.title == other.title and self.attributes == other.attributes
 
     def __ne__(self, other: Any) -> bool:
         return not self.__eq__(other)
@@ -108,13 +99,8 @@ class GDSectionHeader:
 
 @dataclass
 class GDSection:
-    header: GDSectionHeader
-    properties: OrderedDict
-
-    def __post_init__(self):
-        section_name_camel = self.__class__.__name__[2:-7]
-        section_name = re.sub(r"(?<!^)(?=[A-Z])", "_", section_name_camel).lower()
-        GD_SECTION_REGISTRY[section_name] = self.__class__
+    header: GDSectionHeader = field(default=GDSectionHeader(title="section"))
+    properties: dict[str, Any] = field(default_factory=dict)
 
     def __getitem__(self, k: str) -> Any:
         return self.properties[k]
@@ -133,12 +119,24 @@ class GDSection:
 
     @classmethod
     def from_parser(cls, parse_result) -> "GDSection":
-        header = parse_result[0]
-        factory = GD_SECTION_REGISTRY.get(header.name, cls)
-        section = factory(header=header)
+        print(f"DEBUG | GDSection.from_parser | parse_result: {parse_result}")
+        header_title = parse_result[0]
+        header = GDSectionHeader(title=header_title)
+        section = cls(header=header)
         for k, v in parse_result[1:]:
             section[k] = v
         return section
+
+    def __str__(self) -> str:
+        ret = str(self.header)
+        if self.properties:
+            ret += "\n" + "\n".join(
+                [
+                    "%s = %s" % (k, stringify_object(v))
+                    for k, v in self.properties.items()
+                ]
+            )
+        return ret
 
     def __repr__(self) -> str:
         return "%s(%s)" % (type(self).__name__, self.__str__())
@@ -152,13 +150,11 @@ class GDSection:
         return not self.__eq__(other)
 
 
+@dataclass
 class GDExtResourceSection(GDSection):
     """Section representing an [ext_resource]"""
 
-    def __init__(self, path: str, type: str, id: int):
-        super().__init__(
-            GDSectionHeader(name="ext_resource", path=path, type=type, id=id)
-        )
+    header: GDSectionHeader = field(default=GDSectionHeader(title="ext_resource"))
 
     @property
     def path(self) -> str:
@@ -186,7 +182,7 @@ class GDExtResourceSection(GDSection):
 
     @property
     def reference(self) -> ExtResource:
-        return ExtResource(self.id)
+        return ExtResource(_id=self.id)
 
 
 class GDSubResourceSection(GDSection):
@@ -213,31 +209,28 @@ class GDSubResourceSection(GDSection):
 
     @property
     def reference(self) -> SubResource:
-        return SubResource(self.id)
+        return SubResource(_id=self.id)
 
 
 @dataclass
 class GDNodeSection(GDSection):
     """Section representing a [node]"""
 
-    def __post_init__(self):
-        super().__post_init__()
-
     @classmethod
     def ext_node(cls):
         # header = GDSectionHeader(
         #     "node", name=name, instance=instance, parent=parent, index=index
         # )
-        header = GDSectionHeader(name="node")
+        header = GDSectionHeader(title="node")
         return cls(header=header)
 
     @property
     def name(self) -> str:
-        return self.header.name
+        return self.header.title
 
     @name.setter
     def name(self, name: str) -> None:
-        self.header.name = name
+        self.header.title = name
 
     @property
     def type(self) -> Optional[str]:

@@ -1,9 +1,6 @@
 """ Wrappers for Godot's non-primitive object types """
 
-from functools import partial
-from typing import Type, TypeVar
-
-from .util import stringify_object
+from dataclasses import dataclass
 
 __all__ = [
     "GDObject",
@@ -15,27 +12,9 @@ __all__ = [
     "SubResource",
 ]
 
-GD_OBJECT_REGISTRY = {}
 
-
-class GDObjectMeta(type):
-    """
-    This is me trying to be too clever for my own good
-
-    Odds are high that it'll cause some weird hard-to-debug issues at some point, but
-    isn't it neeeeeat? -_-
-    """
-
-    def __new__(cls, name, bases, dct):
-        x = super().__new__(cls, name, bases, dct)
-        GD_OBJECT_REGISTRY[name] = x
-        return x
-
-
-GDObjectType = TypeVar("GDObjectType", bound="GDObject")
-
-
-class GDObject(metaclass=GDObjectMeta):
+@dataclass
+class GDObject:
     """
     Base class for all GD Object types
 
@@ -44,21 +23,17 @@ class GDObject(metaclass=GDObjectMeta):
         GDObject('Vector2', 1, 2) == Vector2(1, 2)
     """
 
-    def __init__(self, name, *args) -> None:
-        self.name = name
-        self.args = list(args)
+    name: str
+    args: list
 
     @classmethod
-    def from_parser(cls: Type[GDObjectType], parse_result) -> GDObjectType:
+    def from_parser(cls, parse_result) -> "GDObject":
         name = parse_result[0]
-        factory = GD_OBJECT_REGISTRY.get(name, partial(GDObject, name))
-        return factory(*parse_result[1:])
+        args = parse_result[1:]
+        return cls(name, args)
 
     def __str__(self) -> str:
-        return "%s( %s )" % (
-            self.name,
-            ", ".join([stringify_object(v) for v in self.args]),
-        )
+        return f"{self.name}({', '.join(map(str, self.args))})"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -72,9 +47,15 @@ class GDObject(metaclass=GDObjectMeta):
         return not self.__eq__(other)
 
 
+@dataclass
 class Vector2(GDObject):
-    def __init__(self, x: float, y: float) -> None:
-        super().__init__("Vector2", x, y)
+    _x: float
+    _y: float
+
+    def __init__(self, _x: float, _y: float):
+        super().__init__(name="Vector2", args=[_x, _y])
+        self._x = _x
+        self._y = _y
 
     def __getitem__(self, idx) -> float:
         return self.args[idx]
@@ -103,9 +84,17 @@ class Vector2(GDObject):
         self.args[1] = y
 
 
+@dataclass
 class Vector3(GDObject):
-    def __init__(self, x: float, y: float, z: float) -> None:
-        super().__init__("Vector3", x, y, z)
+    _x: float
+    _y: float
+    _z: float
+
+    def __init__(self, _x: float, _y: float, _z: float):
+        super().__init__(name="Vector3", args=[_x, _y, _z])
+        self._x = _x
+        self._y = _y
+        self._z = _z
 
     def __getitem__(self, idx: int) -> float:
         return self.args[idx]
@@ -144,13 +133,24 @@ class Vector3(GDObject):
         self.args[2] = z
 
 
+@dataclass
 class Color(GDObject):
-    def __init__(self, r: float, g: float, b: float, a: float) -> None:
-        assert 0 <= r <= 1
-        assert 0 <= g <= 1
-        assert 0 <= b <= 1
-        assert 0 <= a <= 1
-        super().__init__("Color", r, g, b, a)
+    _r: float
+    _g: float
+    _b: float
+    _a: float
+
+    def __init__(self, _r: float, _g: float, _b: float, _a: float):
+        super().__init__(name="Color", args=[_r, _g, _b, _a])
+        self._r = _r
+        self._g = _g
+        self._b = _b
+        self._a = _a
+
+        assert 0 <= self._r <= 1
+        assert 0 <= self._g <= 1
+        assert 0 <= self._b <= 1
+        assert 0 <= self._a <= 1
 
     def __getitem__(self, idx: int) -> float:
         return self.args[idx]
@@ -199,9 +199,13 @@ class Color(GDObject):
         self.args[3] = a
 
 
+@dataclass
 class NodePath(GDObject):
-    def __init__(self, path: str) -> None:
-        super().__init__("NodePath", path)
+    _path: str
+
+    def __init__(self, _path: str):
+        super().__init__(name="NodePath", args=[_path])
+        self._path = _path
 
     @property
     def path(self) -> str:
@@ -217,9 +221,13 @@ class NodePath(GDObject):
         return '%s("%s")' % (self.name, self.path)
 
 
+@dataclass
 class ExtResource(GDObject):
-    def __init__(self, id: int) -> None:
-        super().__init__("ExtResource", id)
+    _id: int
+
+    def __init__(self, _id: int):
+        super().__init__(name="ExtResource", args=[_id])
+        self._id = _id
 
     @property
     def id(self) -> int:
@@ -232,9 +240,13 @@ class ExtResource(GDObject):
         self.args[0] = id
 
 
+@dataclass
 class SubResource(GDObject):
-    def __init__(self, id: int) -> None:
-        super().__init__("SubResource", id)
+    _id: int
+
+    def __init__(self, _id: int):
+        super().__init__(name="SubResource", args=[_id])
+        self._id = _id
 
     @property
     def id(self) -> int:

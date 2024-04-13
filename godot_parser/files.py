@@ -52,9 +52,9 @@ class GDFile:
 
     def add_section(self, new_section: GDSection) -> int:
         """Add a section to the file and return the index of that section"""
-        new_idx = SCENE_ORDER.index(new_section.header.name)
+        new_idx = SCENE_ORDER.index(new_section.header.title)
         for i, section in enumerate(self._sections):
-            idx = SCENE_ORDER.index(section.header.name)
+            idx = SCENE_ORDER.index(section.header.title)
             if new_idx < idx:
                 self._sections.insert(i, new_section)
                 return i
@@ -81,7 +81,7 @@ class GDFile:
         """Get all sections, or all sections of a given type"""
         if name is None:
             return self._sections
-        return [s for s in self._sections if s.header.name == name]
+        return [s for s in self._sections if s.header.title == name]
 
     def get_nodes(self) -> List[GDNodeSection]:
         """Get all [node] sections"""
@@ -174,7 +174,12 @@ class GDFile:
     def add_ext_resource(self, path: str, type: str) -> GDExtResourceSection:
         """Add an ext_resource"""
         next_id = 1 + max([s.id for s in self.get_ext_resources()] + [0])
-        section = GDExtResourceSection(path, type, next_id)
+        properties = {
+            "path": path,
+            "type": type,
+            "id": next_id,
+        }
+        section = GDExtResourceSection(properties=properties)
         self.add_section(section)
         return section
 
@@ -191,7 +196,7 @@ class GDFile:
         type: Optional[str] = None,
         parent: Optional[str] = None,
         index: Optional[int] = None,
-        instance_id: Optional[int] = None,
+        instance: Optional[int] = None,
         groups: Optional[List[str]] = None,
     ) -> GDNodeSection:
         """
@@ -200,23 +205,23 @@ class GDFile:
         For a friendlier, tree-oriented API use use_tree()
         """
         index_str = f"{index}" if index is not None else None
-        instance = ExtResource(instance_id) if instance_id is not None else None
-        header = GDSectionHeader(
-            name=name,
-            type=type,
-            parent=parent,
-            index=index_str,
-            instance=instance,
-            groups=groups,
-        )
-        node = GDNodeSection(header=header)
+        header = GDSectionHeader(title="node")
+        properties = {
+            "name": name,
+            "type": type,
+            "parent": parent,
+            "index": index_str,
+            "instance": instance,
+            "groups": groups,
+        }
+        node = GDNodeSection(header=header, properties=properties)
         self.add_section(node)
         return node
 
     def add_ext_node(
         self,
         name: str,
-        instance_id: int,
+        instance: int,
         parent: Optional[str] = None,
         index: Optional[int] = None,
     ) -> GDNodeSection:
@@ -225,15 +230,14 @@ class GDFile:
 
         For a friendlier, tree-oriented API use use_tree()
         """
-        index_str = f"{index}" if index is not None else None
-        instance = ExtResource(instance_id) if instance_id is not None else None
-        header = GDSectionHeader(
-            name=name,
-            parent=parent,
-            index=index_str,
-            instance=instance,
-        )
-        node = GDNodeSection(header=header)
+        header = GDSectionHeader(title="node")
+        properties = {
+            "name": name,
+            "instance": instance,
+            "parent": parent,
+            "index": index,
+        }
+        node = GDNodeSection(header=header, properties=properties)
         self.add_section(node)
         return node
 
@@ -295,7 +299,7 @@ class GDFile:
         yield tree
         for i in range(len(self._sections) - 1, -1, -1):
             section = self._sections[i]
-            if section.header.name == "node":
+            if section.header.title == "node":
                 self._sections.pop(i)
         nodes = tree.flatten()
         if not nodes:
@@ -373,13 +377,13 @@ class GDCommonFile(GDFile):
     _sections: List[GDSection] = field(default_factory=list)
 
     def __post_init__(self):
-        initial_header = GDSection(
-            GDSectionHeader(self.header_name, load_steps=1, format=2)
-        )
-        self._sections.insert(0, initial_header)
-        self.load_steps = (
-            1 + len(self.get_ext_resources()) + len(self.get_sub_resources())
-        )
+        header = GDSectionHeader(self.header_name, load_steps=1, format=2)
+        properties = {}
+        section = GDSection(header=header, properties=properties)
+        self._sections.insert(0, section)
+        steps_ext_resources = len(self.get_ext_resources())
+        steps_sub_resources = len(self.get_sub_resources())
+        self.load_steps = 1 + steps_ext_resources + steps_sub_resources
 
     @property
     def load_steps(self) -> int:
@@ -395,13 +399,13 @@ class GDCommonFile(GDFile):
 
     def add_section(self, new_section: GDSection) -> int:
         idx = super().add_section(new_section)
-        if new_section.header.name in ["ext_resource", "sub_resource"]:
+        if new_section.header.title in ["ext_resource", "sub_resource"]:
             self.load_steps += 1
         return idx
 
     def remove_at(self, index: int):
         section = self._sections.pop(index)
-        if section.header.name in ["ext_resource", "sub_resource"]:
+        if section.header.title in ["ext_resource", "sub_resource"]:
             self.load_steps -= 1
 
     def remove_unused_resources(self):
@@ -471,7 +475,8 @@ class GDCommonFile(GDFile):
 
 @dataclass
 class GDScene(GDCommonFile):
-    header_name = field(default="gd_scene")
+    header_name: str = field(default="gd_scene")
+
     def __post_init__(self):
         self.header_name = "gd_scene"
         super().__post_init__()
@@ -479,7 +484,8 @@ class GDScene(GDCommonFile):
 
 @dataclass
 class GDResource(GDCommonFile):
-    header_name = field(default="gd_resource")
+    header_name: str = field(default="gd_resource")
+
     def __post_init__(self):
         self.header_name = "gd_resource"
         super().__post_init__()
