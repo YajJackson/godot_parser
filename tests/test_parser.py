@@ -1,15 +1,18 @@
 import os
-from typing import Optional, Union
+from typing import Optional
 import unittest
 
 from pyparsing import ParseException
 
+from beartype.door import is_bearable
+
 from godot_parser import GDFile, GDObject, GDSection, GDSectionHeader, Vector2, parse
-from godot_parser.files import GDResource, GDScene
+from godot_parser.files import GDFileType
 
 HERE = os.path.dirname(__file__)
 
-TEST_CASES = [
+
+TEST_CASES: list[tuple[str, GDFileType]] = [
     (
         "[gd_scene load_steps=5 format=2]",
         GDFile(GDSection(GDSectionHeader("gd_scene", load_steps=5, format=2))),
@@ -51,7 +54,7 @@ TEST_CASES = [
                 GDSectionHeader("sub_resource", type="RectangleShape2D", id=1),
                 extents=Vector2(12.7855, 17.0634),
                 other=None,
-                **{"with spaces": 1}
+                **{"with spaces": 1},
             )
         ),
     ),
@@ -71,7 +74,7 @@ TEST_CASES = [
                         "update": 0,
                         "values": [Vector2(0, 0), Vector2(1, 0)],
                     }
-                }
+                },
             )
         ),
     ),
@@ -108,7 +111,7 @@ TEST_CASES = [
                     "0:0/0": 0,
                     "0:0/0/physics_layer_0/linear_velocity": Vector2(0, 0),
                     "0:0/0/physics_layer_0/angular_velocity": 0.0,
-                }
+                },
             )
         ),
     ),
@@ -116,11 +119,9 @@ TEST_CASES = [
 
 
 class TestParser(unittest.TestCase):
-    """ """
-
-    def _run_test(self, string: str, expected):
+    def _run_test(self, string: str, expected: GDFileType):
         """Run a set of tests"""
-        parse_result: Optional[Union[GDScene, GDResource]] = None
+        parse_result: Optional[GDFileType] = None
         try:
             parse_result = parse(string)
             if expected == "error":
@@ -128,8 +129,8 @@ class TestParser(unittest.TestCase):
                     string,
                     parse_result,
                 )
-            else:
-                self.assertEqual(parse_result, expected)
+            condition = is_bearable(parse_result, GDFileType)
+            assert condition, f"Expected {type(expected)}, got {type(parse_result)}"
         except ParseException as e:
             if expected != "error":
                 print(string)

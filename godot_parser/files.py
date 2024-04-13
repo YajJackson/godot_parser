@@ -7,7 +7,6 @@ from typing import (
     Optional,
     Sequence,
     Type,
-    TypeVar,
     Union,
     cast,
 )
@@ -37,9 +36,6 @@ SCENE_ORDER = [
     "connection",
     "editable",
 ]
-
-
-GDFileType = TypeVar("GDFileType", bound="GDFile")
 
 
 class GodotFileException(Exception):
@@ -304,12 +300,12 @@ class GDFile(object):
         return node.section if node is not None else None
 
     @classmethod
-    def parse(cls: Type[GDFileType], contents: str):
+    def parse(cls, contents: str):
         """Parse the contents of a Godot file"""
         return cls.from_parser(scene_file.parse_string(contents, parseAll=True))
 
     @classmethod
-    def load(cls: Type[GDFileType], filepath: str):
+    def load(cls, filepath: str):
         with open(filepath, "r", encoding="utf-8") as ifile:
             try:
                 file = cls.parse(ifile.read())
@@ -322,7 +318,7 @@ class GDFile(object):
         return file
 
     @classmethod
-    def from_parser(cls: Type[GDFileType], parse_result):
+    def from_parser(cls, parse_result):
         first_section = parse_result[0]
         if first_section.header.name == "gd_scene":
             scene = GDScene.__new__(GDScene)
@@ -334,7 +330,6 @@ class GDFile(object):
             return resource
 
         return cls(*parse_result)
-        raise GodotFileException("Unknown GDFileType %s" % first_section.header.name)
 
     def write(self, filename: str):
         """Writes this to a file"""
@@ -386,6 +381,7 @@ class GDCommonFile(GDFile):
         section = self._sections.pop(index)
         if section.header.name in ["ext_resource", "sub_resource"]:
             self.load_steps -= 1
+        return section
 
     def remove_unused_resources(self):
         self._remove_unused_resources(self.get_ext_resources(), ExtResource)
@@ -460,3 +456,6 @@ class GDScene(GDCommonFile):
 class GDResource(GDCommonFile):
     def __init__(self, *sections: GDSection) -> None:
         super().__init__("gd_resource", *sections)
+
+
+GDFileType = Union[GDFile, GDScene, GDResource]
