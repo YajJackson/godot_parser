@@ -1,9 +1,11 @@
 """ Helper API for working with the Godot scene tree structure """
+
 from collections import OrderedDict
+from dataclasses import dataclass, field
 from typing import Any, List, Optional, Union
 
 from .files import GDFile
-from .sections import GDNodeSection
+from .sections import GDNodeSection, GDSectionHeader
 
 __all__ = ["Node", "TreeMutationException"]
 SENTINEL = object()
@@ -13,7 +15,8 @@ class TreeMutationException(Exception):
     """Raised when attempting to mutate the tree in an unsupported way"""
 
 
-class Node(object):
+@dataclass
+class Node:
     """
     Wraps a GDNodeSection object
 
@@ -21,31 +24,24 @@ class Node(object):
     a tree structure instead of the flat list that the file format demands.
     """
 
-    _children: List["Node"]
-    _parent: Optional["Node"]
-    _index: Optional[int]
+    _name: str
 
-    def __init__(
-        self,
-        name: str,
-        type: Optional[str] = None,
-        instance: Optional[int] = None,
-        section: Optional[GDNodeSection] = None,
-        groups: Optional[List[str]] = None,
-        properties: Optional[dict] = None,
-    ):
-        self._name = name
-        self._type = type
-        self._instance = instance
-        self._parent = None
-        self._index = None
-        self.section = section or GDNodeSection(name)
-        self._groups = groups
-        self.properties = (
-            OrderedDict() if properties is None else OrderedDict(properties)
-        )
-        self._children = []  # type: ignore
-        self._inherited_node: Optional["Node"] = None
+    _parent: Optional["Node"] = None
+    _index: Optional[int] = None
+    _type: Optional[str] = None
+    _instance: Optional[int] = None
+    _inherited_node: Optional["Node"] = None
+
+    section: Optional[GDNodeSection] = None
+
+    _groups: List[str] = field(default_factory=list)
+    _children: List["Node"] = field(default_factory=list)
+
+    properties: OrderedDict = field(default_factory=OrderedDict)
+
+    def __post_init__(self):
+        if self.section is None:
+            self.section = GDNodeSection(header=GDSectionHeader(self.name))
 
     def _mark_inherited(self) -> None:
         clone = self.clone()
@@ -54,11 +50,14 @@ class Node(object):
         self.properties.clear()
         self._type = None
         self._instance = None
-        self.section = GDNodeSection(self.name)
+        self.section = GDNodeSection(header=GDSectionHeader(self.name))
 
     def clone(self) -> "Node":
         return Node(
-            self.name, self.type, self.instance, properties=OrderedDict(self.properties)
+            _name=self.name,
+            _type=self.type,
+            _instance=self.instance,
+            properties=(self.properties or OrderedDict()),
         )
 
     @property
@@ -138,11 +137,11 @@ class Node(object):
     @classmethod
     def from_section(cls, section: GDNodeSection):
         """Create a Node from a GDNodeSection"""
+        # TODO: not sure if this is correct
         return cls(
-            section.name,
-            section.type,
-            section.instance,
-            section,
+            _name=section.name,
+            _type=section.type,
+            _instance=section.instance,
             properties=section.properties,
         )
 
@@ -176,6 +175,8 @@ class Node(object):
             yield from child.flatten(child_path)
 
     def _update_section(self, path: Optional[str] = None) -> None:
+        assert self.section is not None, "Node must have a section"
+
         self.section.name = self.name
         self.section.type = self._type
         self.section.parent = path
@@ -321,6 +322,8 @@ class Tree(object):
         for node in self.root.flatten():
             if node.is_inherited and not node.has_changes and node.parent is not None:
                 continue
+            if not isinstance(node.section, GDNodeSection):
+                continue
             ret.append(node.section)
         return ret
 
@@ -329,6 +332,8 @@ def _load_parent_scene(root: Node, file: GDFile):
     parent_file: GDFile = file.load_parent_scene()
     parent_tree = Tree.build(parent_file)
     # Transfer parent scene's children to this scene
+    assert parent_tree.root is not None, "Parent tree should have root node"
+
     for child in parent_tree.root.get_children():
         root.add_child(child)
     # Mark the entire parent tree as inherited

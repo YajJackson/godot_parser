@@ -9,7 +9,8 @@ class TestGDFile(unittest.TestCase):
 
     def test_basic_scene(self):
         """Run the parsing test cases"""
-        self.assertEqual(str(GDScene()), "[gd_scene load_steps=1 format=2]\n")
+        scene = GDScene()
+        self.assertEqual(str(scene), "[gd_scene load_steps=1 format=2]\n")
 
     def test_all_data_types(self):
         """Run the parsing test cases"""

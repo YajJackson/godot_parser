@@ -199,9 +199,9 @@ flip_h = true
             node.type = "Node2D"
             node.name = "NewChild2"
         found = scene.find_section("node", name="NewChild2")
-        self.assertIsNotNone(found)
         assert found is not None, "Should find NewChild2 node"
-        self.assertEqual(found.type, "Node2D")
+        assert found.type == "Node2D", "NewChild2 should be Node2D"
+        assert found.parent == ".", "NewChild2 should be at root"
         self.assertEqual(found.parent, ".")
         self.assertEqual(found.index, 3)
 

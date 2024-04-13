@@ -1,11 +1,11 @@
 import re
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Type, TypeVar
+from typing import Any, List, Optional, Type, TypeVar
 from dataclasses import dataclass, field
 
 
 from .objects import ExtResource, SubResource
-from .util import generate_id, stringify_object
+from .util import stringify_object
 
 __all__ = [
     "GDSectionHeader",
@@ -32,10 +32,28 @@ class GDSectionHeader:
     """
 
     name: str
-    id: int = field(default_factory=generate_id)
-    path: str = field(default="")
-    type: str = field(default="node")
+    id: Optional[int] = None
+    path: Optional[str] = None
+    type: Optional[str] = None
+    format: Optional[int] = None
+    load_steps: Optional[int] = None
+    parent: Optional[str] = None
+    index: Optional[str] = None
+    instance: Optional[ExtResource] = None
+    groups: Optional[List[str]] = None
     attributes: OrderedDict[str, Any] = field(default_factory=OrderedDict)
+
+    def __post_init__(self):
+        if self.id is not None:
+            self.attributes["id"] = self.id
+        if self.path is not None:
+            self.attributes["path"] = self.path
+        if self.type is not None:
+            self.attributes["type"] = self.type
+        if self.format is not None:
+            self.attributes["format"] = self.format
+        if self.load_steps is not None:
+            self.attributes["load_steps"] = self.load_steps
 
     def __getitem__(self, k: str) -> Any:
         return self.attributes[k]
@@ -90,11 +108,10 @@ class GDSectionHeader:
 
 @dataclass
 class GDSection:
-    header: Any
-    properties: OrderedDict = field(default_factory=OrderedDict)
+    header: GDSectionHeader
+    properties: OrderedDict
 
     def __post_init__(self):
-        # Dynamic registration logic moved to __post_init__
         section_name_camel = self.__class__.__name__[2:-7]
         section_name = re.sub(r"(?<!^)(?=[A-Z])", "_", section_name_camel).lower()
         GD_SECTION_REGISTRY[section_name] = self.__class__
@@ -115,7 +132,7 @@ class GDSection:
         return self.properties.get(k, default)
 
     @classmethod
-    def from_parser(cls: Type["GDSection"], parse_result) -> "GDSection":
+    def from_parser(cls, parse_result) -> "GDSection":
         header = parse_result[0]
         factory = GD_SECTION_REGISTRY.get(header.name, cls)
         section = factory(header=header)
@@ -199,78 +216,57 @@ class GDSubResourceSection(GDSection):
         return SubResource(self.id)
 
 
+@dataclass
 class GDNodeSection(GDSection):
     """Section representing a [node]"""
 
-    def __init__(
-        self,
-        name: str,
-        type: Optional[str] = None,
-        parent: Optional[str] = None,
-        instance: Optional[int] = None,
-        index: Optional[int] = None,
-        groups: Optional[List[str]] = None,
-        # TODO: instance_placeholder, owner are referenced in the docs, but I
-        # haven't seen them come up yet in my project
-    ):
-        kwargs = {
-            "name": name,
-            "type": type,
-            "parent": parent,
-            "instance": ExtResource(instance) if instance is not None else None,
-            "index": str(index) if index is not None else None,
-            "groups": groups,
-        }
-        super().__init__(
-            GDSectionHeader(
-                "node", **{k: v for k, v in kwargs.items() if v is not None}
-            )
-        )
+    def __post_init__(self):
+        super().__post_init__()
 
     @classmethod
-    def ext_node(
-        cls,
-        name: str,
-        instance: int,
-        parent: Optional[str] = None,
-        index: Optional[int] = None,
-    ):
-        return cls(name, parent=parent, instance=instance, index=index)
+    def ext_node(cls):
+        # header = GDSectionHeader(
+        #     "node", name=name, instance=instance, parent=parent, index=index
+        # )
+        header = GDSectionHeader(name="node")
+        return cls(header=header)
 
     @property
     def name(self) -> str:
-        return self.header["name"]
+        return self.header.name
 
     @name.setter
     def name(self, name: str) -> None:
-        self.header["name"] = name
+        self.header.name = name
 
     @property
     def type(self) -> Optional[str]:
-        return self.header.get("type")
+        return self.header.type
 
     @type.setter
     def type(self, type: Optional[str]) -> None:
         if type is None:
-            del self.header["type"]
+            self.header.type = None
+            del self.header.type
         else:
-            self.header["type"] = type
+            self.header.type = type
             self.instance = None
 
     @property
     def parent(self) -> Optional[str]:
-        return self.header.get("parent")
+        return self.header.parent
 
     @parent.setter
     def parent(self, parent: Optional[str]) -> None:
         if parent is None:
-            del self.header["parent"]
+            self.header.parent = None
+            del self.header.parent
         else:
-            self.header["parent"] = parent
+            self.header.parent = parent
 
     @property
     def instance(self) -> Optional[int]:
-        resource = self.header.get("instance")
+        resource = self.header.instance
         if resource is not None:
             return resource.id
         return None
@@ -278,14 +274,15 @@ class GDNodeSection(GDSection):
     @instance.setter
     def instance(self, instance: Optional[int]) -> None:
         if instance is None:
-            del self.header["instance"]
+            self.header.instance = None
+            del self.header.instance
         else:
-            self.header["instance"] = ExtResource(instance)
+            self.header.instance = ExtResource(instance)
             self.type = None
 
     @property
     def index(self) -> Optional[int]:
-        idx = self.header.get("index")
+        idx = self.header.index
         if idx is not None:
             return int(idx)
         return None
@@ -293,9 +290,10 @@ class GDNodeSection(GDSection):
     @index.setter
     def index(self, index: Optional[int]) -> None:
         if index is None:
-            del self.header["index"]
+            self.header.index = None
+            del self.header.index
         else:
-            self.header["index"] = str(index)
+            self.header.index = str(index)
 
     @property
     def groups(self) -> Optional[List[str]]:
@@ -304,13 +302,14 @@ class GDNodeSection(GDSection):
     @groups.setter
     def groups(self, groups: Optional[List[str]]) -> None:
         if groups is None:
-            del self.header["groups"]
+            self.header.groups = None
+            del self.header.groups
         else:
-            self.header["groups"] = groups
+            self.header.groups = groups
 
 
+@dataclass
 class GDResourceSection(GDSection):
     """Represents a [resource] section"""
 
-    def __init__(self, **kwargs):
-        super().__init__(GDSectionHeader("resource"), **kwargs)
+    pass

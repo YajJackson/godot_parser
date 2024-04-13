@@ -1,5 +1,6 @@
 import os
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 from typing import (
     Iterable,
     Iterator,
@@ -7,7 +8,6 @@ from typing import (
     Optional,
     Sequence,
     Type,
-    TypeVar,
     Union,
     cast,
 )
@@ -39,27 +39,23 @@ SCENE_ORDER = [
 ]
 
 
-GDFileType = TypeVar("GDFileType", bound="GDFile")
-
-
 class GodotFileException(Exception):
     """Thrown when there are errors in a Godot file"""
 
 
-class GDFile(object):
+@dataclass
+class GDFile:
     """Base class representing the contents of a Godot file"""
 
     project_root: Optional[str] = None
-
-    def __init__(self, *sections: GDSection) -> None:
-        self._sections = list(sections)
+    _sections: List[GDSection] = field(default_factory=list)
 
     def add_section(self, new_section: GDSection) -> int:
         """Add a section to the file and return the index of that section"""
         new_idx = SCENE_ORDER.index(new_section.header.name)
         for i, section in enumerate(self._sections):
             idx = SCENE_ORDER.index(section.header.name)
-            if new_idx < idx:  # type: ignore
+            if new_idx < idx:
                 self._sections.insert(i, new_section)
                 return i
         self._sections.append(new_section)
@@ -130,7 +126,7 @@ class GDFile(object):
         self,
         section_name_: Optional[str] = None,
         property_constraints: Optional[dict] = None,
-        **constraints
+        **constraints,
     ) -> Optional[GDSection]:
         """
         Find the first section that matches
@@ -155,7 +151,7 @@ class GDFile(object):
         self,
         section_name_: Optional[str] = None,
         property_constraints: Optional[dict] = None,
-        **constraints
+        **constraints,
     ) -> Iterable[GDSection]:
         """Same as find_section, but returns all matches"""
         for section in self.get_sections(section_name_):
@@ -195,7 +191,7 @@ class GDFile(object):
         type: Optional[str] = None,
         parent: Optional[str] = None,
         index: Optional[int] = None,
-        instance: Optional[int] = None,
+        instance_id: Optional[int] = None,
         groups: Optional[List[str]] = None,
     ) -> GDNodeSection:
         """
@@ -203,21 +199,24 @@ class GDFile(object):
 
         For a friendlier, tree-oriented API use use_tree()
         """
-        node = GDNodeSection(
-            name,
+        index_str = f"{index}" if index is not None else None
+        instance = ExtResource(instance_id) if instance_id is not None else None
+        header = GDSectionHeader(
+            name=name,
             type=type,
             parent=parent,
-            index=index,
+            index=index_str,
             instance=instance,
             groups=groups,
         )
+        node = GDNodeSection(header=header)
         self.add_section(node)
         return node
 
     def add_ext_node(
         self,
         name: str,
-        instance: int,
+        instance_id: int,
         parent: Optional[str] = None,
         index: Optional[int] = None,
     ) -> GDNodeSection:
@@ -226,7 +225,15 @@ class GDFile(object):
 
         For a friendlier, tree-oriented API use use_tree()
         """
-        node = GDNodeSection.ext_node(name, instance, parent=parent, index=index)
+        index_str = f"{index}" if index is not None else None
+        instance = ExtResource(instance_id) if instance_id is not None else None
+        header = GDSectionHeader(
+            name=name,
+            parent=parent,
+            index=index_str,
+            instance=instance,
+        )
+        node = GDNodeSection(header=header)
         self.add_section(node)
         return node
 
@@ -259,7 +266,12 @@ class GDFile(object):
             raise RuntimeError(
                 "Could not find parent scene resource id(%d)" % root.instance
             )
-        return GDScene.load(gdpath_to_filepath(self.project_root, parent_res.path))
+        parent_scene = GDScene.load(
+            gdpath_to_filepath(self.project_root, parent_res.path)
+        )
+        if isinstance(parent_scene, GDResource):
+            raise RuntimeError("Parent scene is not a scene file")
+        return parent_scene
 
     @contextmanager
     def use_tree(self):
@@ -302,12 +314,12 @@ class GDFile(object):
         return node.section if node is not None else None
 
     @classmethod
-    def parse(cls: Type[GDFileType], contents: str) -> GDFileType:
+    def parse(cls, contents: str):
         """Parse the contents of a Godot file"""
         return cls.from_parser(scene_file.parse_string(contents, parseAll=True))
 
     @classmethod
-    def load(cls: Type[GDFileType], filepath: str) -> GDFileType:
+    def load(cls, filepath: str):
         with open(filepath, "r", encoding="utf-8") as ifile:
             try:
                 file = cls.parse(ifile.read())
@@ -319,18 +331,18 @@ class GDFile(object):
         file.project_root = find_project_root(filepath)
         return file
 
-    @classmethod
-    def from_parser(cls: Type[GDFileType], parse_result):
+    @staticmethod
+    def from_parser(parse_result):
         first_section = parse_result[0]
         if first_section.header.name == "gd_scene":
             scene = GDScene.__new__(GDScene)
             scene._sections = list(parse_result)
             return scene
-        elif first_section.header.name == "gd_resource":
+        if first_section.header.name == "gd_resource":
             resource = GDResource.__new__(GDResource)
             resource._sections = list(parse_result)
             return resource
-        return cls(*parse_result)
+        raise GodotFileException("Unknown file type %s" % first_section.header.name)
 
     def write(self, filename: str):
         """Writes this to a file"""
@@ -353,24 +365,33 @@ class GDFile(object):
         return not self.__eq__(other)
 
 
+@dataclass
 class GDCommonFile(GDFile):
     """Base class with common application logic for all Godot file types"""
 
-    def __init__(self, name: str, *sections: GDSection) -> None:
-        super().__init__(
-            GDSection(GDSectionHeader(name, load_steps=1, format=2)), *sections
+    header_name: str = field(default="")
+    _sections: List[GDSection] = field(default_factory=list)
+
+    def __post_init__(self):
+        initial_header = GDSection(
+            GDSectionHeader(self.header_name, load_steps=1, format=2)
         )
+        self._sections.insert(0, initial_header)
         self.load_steps = (
             1 + len(self.get_ext_resources()) + len(self.get_sub_resources())
         )
 
     @property
     def load_steps(self) -> int:
-        return self._sections[0].header["load_steps"]
+        if self._sections[0].header.load_steps is None:
+            raise GodotFileException(
+                "First header of a Godot file must have load_steps"
+            )
+        return self._sections[0].header.load_steps
 
     @load_steps.setter
     def load_steps(self, steps: int):
-        self._sections[0].header["load_steps"] = steps
+        self._sections[0].header.load_steps = steps
 
     def add_section(self, new_section: GDSection) -> int:
         idx = super().add_section(new_section)
@@ -448,11 +469,20 @@ class GDCommonFile(GDFile):
                     raise GodotFileException("Unknown resource ID %d" % ref.id) from e
 
 
+@dataclass
 class GDScene(GDCommonFile):
-    def __init__(self, *sections: GDSection) -> None:
-        super().__init__("gd_scene", *sections)
+    header_name = field(default="gd_scene")
+    def __post_init__(self):
+        self.header_name = "gd_scene"
+        super().__post_init__()
 
 
+@dataclass
 class GDResource(GDCommonFile):
-    def __init__(self, *sections: GDSection) -> None:
-        super().__init__("gd_resource", *sections)
+    header_name = field(default="gd_resource")
+    def __post_init__(self):
+        self.header_name = "gd_resource"
+        super().__post_init__()
+
+
+GDFileType = Union[GDResource, GDScene]
