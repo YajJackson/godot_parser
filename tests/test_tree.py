@@ -8,7 +8,6 @@ from godot_parser.util import find_project_root, gdpath_to_filepath
 
 
 class TestTree(unittest.TestCase):
-
     """Test the the high-level tree API"""
 
     def test_get_node(self):
@@ -107,7 +106,6 @@ class TestTree(unittest.TestCase):
 
 
 class TestInheritedScenes(unittest.TestCase):
-
     """Test the the high-level tree API for inherited scenes"""
 
     project_dir = None
@@ -118,7 +116,7 @@ class TestInheritedScenes(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         super(TestInheritedScenes, cls).setUpClass()
-        cls.project_dir = tempfile.mkdtemp()
+        cls.project_dir = os.path.realpath(tempfile.mkdtemp())
         with open(
             os.path.join(cls.project_dir, "project.godot"), "w", encoding="utf-8"
         ) as ofile:
@@ -300,7 +298,6 @@ flip_h = true
 
 
 class TestUtil(unittest.TestCase):
-
     """Tests for util"""
 
     def test_bad_gdpath(self):

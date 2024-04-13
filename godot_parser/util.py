@@ -1,4 +1,5 @@
 """ Utils """
+
 import json
 import os
 from typing import Optional
@@ -27,9 +28,9 @@ def stringify_object(value):
 
 
 def find_project_root(start: str) -> Optional[str]:
-    curdir = start
-    if os.path.isfile(start):
-        curdir = os.path.dirname(start)
+    curdir = os.path.realpath(start)  # Ensure start is a real path
+    if os.path.isfile(curdir):
+        curdir = os.path.dirname(curdir)
     while True:
         if os.path.isfile(os.path.join(curdir, "project.godot")):
             return curdir
