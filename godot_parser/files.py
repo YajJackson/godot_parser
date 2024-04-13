@@ -333,7 +333,8 @@ class GDFile(object):
             resource._sections = list(parse_result)
             return resource
 
-        raise GodotFileException("Unknown GDFileType %d" % first_section.header.name)
+        return cls(*parse_result)
+        raise GodotFileException("Unknown GDFileType %s" % first_section.header.name)
 
     def write(self, filename: str):
         """Writes this to a file"""
