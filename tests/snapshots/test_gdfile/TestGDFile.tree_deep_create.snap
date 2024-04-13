@@ -1,0 +1,9 @@
+[gd_scene load_steps=1 format=2]
+
+[node name="RootNode" type="Node2D"]
+
+[node name="Child" type="Node" parent="."]
+
+[node name="ChildChild" type="Node" parent="Child"]
+
+[node name="ChildChild2" type="Node" parent="Child"]

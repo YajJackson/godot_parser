@@ -3,15 +3,16 @@ import unittest
 
 from godot_parser import GDFile, GDObject, GDResource, GDResourceSection, GDScene, Node
 from godot_parser.sections import GDExtResourceSection, GDSubResourceSection
+from tests.snapshot_manager import SnapshotManager
 
 
 class TestGDFile(unittest.TestCase):
 
-    """Tests for GDFile"""
+    snapshot_manager = SnapshotManager()
 
     def test_basic_scene(self):
         """Run the parsing test cases"""
-        self.assertEqual(str(GDScene()), "[gd_scene load_steps=1 format=2]\n")
+        self.snapshot_manager.assert_match(str(GDScene()), "basic_scene")
 
     def test_all_data_types(self):
         """Run the parsing test cases"""
@@ -24,58 +25,26 @@ class TestGDFile(unittest.TestCase):
                 escaped='foo("bar")',
             )
         )
-        self.assertEqual(
-            str(res),
-            """[gd_resource load_steps=1 format=2]
-
-[resource]
-list = [ 1, 2.0, "string" ]
-map = {
-"key": [ "nested", Vector2( 1, 1 ) ]
-}
-empty = null
-escaped = "foo(\\"bar\\")"
-""",
-        )
+        self.snapshot_manager.assert_match(str(res), "all_data_types")
 
     def test_ext_resource(self):
         """Test serializing a scene with an ext_resource"""
         scene = GDScene()
         scene.add_ext_resource("res://Other.tscn", "PackedScene")
-        self.assertEqual(
-            str(scene),
-            """[gd_scene load_steps=2 format=2]
-
-[ext_resource path="res://Other.tscn" type="PackedScene" id=1]
-""",
-        )
+        self.snapshot_manager.assert_match(str(scene), "ext_resource")
 
     def test_sub_resource(self):
         """Test serializing a scene with an sub_resource"""
         scene = GDScene()
         scene.add_sub_resource("Animation")
-        self.assertEqual(
-            str(scene),
-            """[gd_scene load_steps=2 format=2]
-
-[sub_resource type="Animation" id=1]
-""",
-        )
+        self.snapshot_manager.assert_match(str(scene), "sub_resource")
 
     def test_node(self):
         """Test serializing a scene with a node"""
         scene = GDScene()
         scene.add_node("RootNode", type="Node2D")
         scene.add_node("Child", type="Area2D", parent=".")
-        self.assertEqual(
-            str(scene),
-            """[gd_scene load_steps=1 format=2]
-
-[node name="RootNode" type="Node2D"]
-
-[node name="Child" type="Area2D" parent="."]
-""",
-        )
+        self.snapshot_manager.assert_match(str(scene), "node")
 
     def test_tree_create(self):
         """Test creating a scene with the tree API"""
@@ -85,16 +54,8 @@ escaped = "foo(\\"bar\\")"
             tree.root.add_child(
                 Node("Child", type="Area2D", properties={"visible": False})
             )
-        self.assertEqual(
-            str(scene),
-            """[gd_scene load_steps=1 format=2]
 
-[node name="RootNode" type="Node2D"]
-
-[node name="Child" type="Area2D" parent="."]
-visible = false
-""",
-        )
+        self.snapshot_manager.assert_match(str(scene), "tree_create")
 
     def test_tree_deep_create(self):
         """Test creating a scene with nested children using the tree API"""
@@ -105,19 +66,8 @@ visible = false
             tree.root.add_child(child)
             child.add_child(Node("ChildChild", type="Node"))
             child.add_child(Node("ChildChild2", type="Node"))
-        self.assertEqual(
-            str(scene),
-            """[gd_scene load_steps=1 format=2]
 
-[node name="RootNode" type="Node2D"]
-
-[node name="Child" type="Node" parent="."]
-
-[node name="ChildChild" type="Node" parent="Child"]
-
-[node name="ChildChild2" type="Node" parent="Child"]
-""",
-        )
+        self.snapshot_manager.assert_match(str(scene), "tree_deep_create")
 
     def test_remove_section(self):
         """Test GDScene.remove_section"""
@@ -153,6 +103,7 @@ visible = false
         scene.write(outfile)
         with open(outfile, "r", encoding="utf-8") as ifile:
             gen_scene = GDScene.parse(ifile.read())
+
         self.assertEqual(scene, gen_scene)
 
     def test_get_node_none(self):
