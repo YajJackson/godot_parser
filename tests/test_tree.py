@@ -4,6 +4,7 @@ import tempfile
 import unittest
 
 from godot_parser import GDScene, Node, SubResource, TreeMutationException
+from godot_parser.sections import GDNodeSection
 from godot_parser.util import find_project_root, gdpath_to_filepath
 
 
@@ -29,6 +30,7 @@ class TestTree(unittest.TestCase):
 
         # Remove by name
         with scene.use_tree() as tree:
+            assert tree.root is not None
             tree.root.remove_child("Child")
         node = scene.find_section("node", name="Child")
         self.assertIsNone(node)
@@ -36,6 +38,7 @@ class TestTree(unittest.TestCase):
         # Remove by index
         scene.add_node("Child", parent=".")
         with scene.use_tree() as tree:
+            assert tree.root is not None
             tree.root.remove_child(0)
         node = scene.find_section("node", name="Child")
         self.assertIsNone(node)
@@ -43,6 +46,7 @@ class TestTree(unittest.TestCase):
         # Remove by reference
         scene.add_node("Child", parent=".")
         with scene.use_tree() as tree:
+            assert tree.root is not None
             node = tree.root.get_children()[0]
             tree.root.remove_child(node)
         node = scene.find_section("node", name="Child")
@@ -51,7 +55,9 @@ class TestTree(unittest.TestCase):
         # Remove child
         scene.add_node("Child", parent=".")
         with scene.use_tree() as tree:
+            assert tree.root is not None
             node = tree.root.get_child(0)
+            assert node is not None
             node.remove_from_parent()
         node = scene.find_section("node", name="Child")
         self.assertIsNone(node)
@@ -62,10 +68,15 @@ class TestTree(unittest.TestCase):
         scene.add_node("RootNode")
         scene.add_node("Child1", parent=".")
         with scene.use_tree() as tree:
+            assert tree.root is not None
             child = Node("Child2", type="Node")
             tree.root.insert_child(0, child)
+
         child1 = scene.find_section("node", name="Child1")
         child2 = scene.find_section("node", name="Child2")
+        assert child1 is not None
+        assert child2 is not None
+
         idx1 = scene.get_sections().index(child1)
         idx2 = scene.get_sections().index(child2)
         self.assertLess(idx2, idx1)
@@ -89,13 +100,17 @@ class TestTree(unittest.TestCase):
         scene = GDScene()
         scene.add_node("RootNode")
         with scene.use_tree() as tree:
+            assert tree.root is not None
             tree.root["vframes"] = 10
             self.assertEqual(tree.root["vframes"], 10)
             tree.root["hframes"] = 10
             del tree.root["hframes"]
             del tree.root["hframes"]
             self.assertIsNone(tree.root.get("hframes"))
+
         child = scene.find_section("node")
+        assert child is not None
+
         self.assertEqual(child["vframes"], 10)
 
     def test_dunder(self):
@@ -167,21 +182,30 @@ flip_h = true
     @classmethod
     def tearDownClass(cls):
         super(TestInheritedScenes, cls).tearDownClass()
+        assert cls.project_dir is not None
+
         if os.path.isdir(cls.project_dir):
             shutil.rmtree(cls.project_dir)
 
     def test_load_inherited(self):
         """Can load an inherited scene and read the nodes"""
+        assert self.leaf_scene is not None
         scene = GDScene.load(self.leaf_scene)
+
         with scene.use_tree() as tree:
             node = tree.get_node("Health/LifeBar")
-            self.assertIsNotNone(node)
+            assert node is not None
+
             self.assertEqual(node.type, "TextureProgress")
 
     def test_add_new_nodes(self):
         """Can add new nodes to an inherited scene"""
+        assert self.leaf_scene is not None
         scene = GDScene.load(self.leaf_scene)
+
         with scene.use_tree() as tree:
+            assert tree.root is not None
+
             tree.get_node("Health/LifeBar")
             node = Node("NewChild", type="Control")
             tree.root.add_child(node)
@@ -189,7 +213,11 @@ flip_h = true
             node.instance = 2
             node.type = "Node2D"
             node.name = "NewChild2"
+
         found = scene.find_section("node", name="NewChild2")
+        assert found is not None
+        assert isinstance(found, GDNodeSection)
+
         self.assertIsNotNone(found)
         self.assertEqual(found.type, "Node2D")
         self.assertEqual(found.parent, ".")
@@ -197,17 +225,24 @@ flip_h = true
 
     def test_cannot_remove(self):
         """Cannot remove inherited nodes"""
+        assert self.leaf_scene is not None
         scene = GDScene.load(self.leaf_scene)
+
         with scene.use_tree() as tree:
+            assert tree.root is not None
             node = tree.get_node("Health")
-            self.assertRaises(TreeMutationException, node.remove_from_parent)
-            self.assertRaises(TreeMutationException, lambda: tree.root.remove_child(0))
-            self.assertRaises(
-                TreeMutationException, lambda: tree.root.remove_child("Health")
-            )
+            assert node is not None
+
+            with self.assertRaises(TreeMutationException):
+                node.remove_from_parent()
+            with self.assertRaises(TreeMutationException):
+                tree.root.remove_child(0)
+            with self.assertRaises(TreeMutationException):
+                tree.root.remove_child("Health")
 
     def test_cannot_mutate(self):
         """Cannot change the name/type/instance of inherited nodes"""
+        assert self.leaf_scene is not None
         scene = GDScene.load(self.leaf_scene)
 
         def change_name(x):
@@ -227,21 +262,27 @@ flip_h = true
 
     def test_inherit_properties(self):
         """Inherited nodes inherit properties"""
+        assert self.leaf_scene is not None
         scene = GDScene.load(self.leaf_scene)
         with scene.use_tree() as tree:
+            assert tree.root is not None
             self.assertEqual(tree.root["shape"], SubResource(1))
             self.assertEqual(tree.root["collision_layer"], 4)
             self.assertEqual(tree.root.get("collision_layer"), 4)
             self.assertEqual(tree.root.get("missing"), None)
-            self.assertRaises(KeyError, lambda: tree.root["missing"])
+
+            with self.assertRaises(KeyError):
+                tree.root["missing"]
 
     def test_unchanged_sections(self):
         """Inherited nodes do not appear in sections"""
+        assert self.leaf_scene is not None
         scene = GDScene.load(self.leaf_scene)
         num_nodes = len(scene.get_nodes())
         self.assertEqual(num_nodes, 2)
         with scene.use_tree() as tree:
             sprite = tree.get_node("Sprite")
+            assert sprite is not None
             sprite["flip_v"] = True
         # No new nodes
         num_nodes = len(scene.get_nodes())
@@ -249,9 +290,11 @@ flip_h = true
 
     def test_overwrite_sections(self):
         """Inherited nodes appear in sections if we change their configuration"""
+        assert self.leaf_scene is not None
         scene = GDScene.load(self.leaf_scene)
         with scene.use_tree() as tree:
             node = tree.get_node("Health/LifeBar")
+            assert node is not None
             node["pause_mode"] = 2
         num_nodes = len(scene.get_nodes())
         self.assertEqual(num_nodes, 3)
@@ -260,9 +303,11 @@ flip_h = true
 
     def test_disappear_sections(self):
         """Inherited nodes are removed from sections if we change their configuration to match parent"""
+        assert self.leaf_scene is not None
         scene = GDScene.load(self.leaf_scene)
         with scene.use_tree() as tree:
             sprite = tree.get_node("Sprite")
+            assert sprite is not None
             sprite["flip_h"] = False
         # Sprite should match parent now, and not be in file
         node = scene.find_section("node", name="Sprite")
@@ -270,6 +315,7 @@ flip_h = true
 
     def test_find_project_root(self):
         """Can find project root even if deep in folder"""
+        assert self.project_dir is not None
         os.mkdir(os.path.join(self.project_dir, "Dir1"))
         nested = os.path.join(self.project_dir, "Dir1", "Dir2")
         os.mkdir(nested)
@@ -291,6 +337,7 @@ flip_h = true
 
     def test_missing_ext_resource(self):
         """Raise exception when GDScene is inherited but ext_resource is missing"""
+        assert self.leaf_scene is not None
         scene = GDScene.load(self.leaf_scene)
         for section in scene.get_ext_resources():
             scene.remove_section(section)

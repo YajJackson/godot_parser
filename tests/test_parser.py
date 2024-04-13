@@ -1,9 +1,11 @@
 import os
+from typing import Optional, Union
 import unittest
 
 from pyparsing import ParseException
 
 from godot_parser import GDFile, GDObject, GDSection, GDSectionHeader, Vector2, parse
+from godot_parser.files import GDResource, GDScene
 
 HERE = os.path.dirname(__file__)
 
@@ -114,11 +116,11 @@ TEST_CASES = [
 
 
 class TestParser(unittest.TestCase):
-
     """ """
 
     def _run_test(self, string: str, expected):
         """Run a set of tests"""
+        parse_result: Optional[Union[GDScene, GDResource]] = None
         try:
             parse_result = parse(string)
             if expected == "error":

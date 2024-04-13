@@ -6,6 +6,8 @@ from pyparsing import (
     Group,
     Keyword,
     Opt,
+    ParseResults,
+    ParserElement,
     QuotedString,
     Suppress,
     Word,
@@ -16,10 +18,20 @@ from pyparsing import (
 
 from .objects import GDObject
 
-boolean = (
+
+def parse_action_function(parse_results: ParseResults) -> bool:
+    result = parse_results[0]
+    if isinstance(result, bool):
+        return result
+    if isinstance(result, str):
+        return result.lower() == "true"
+    raise ValueError(f"Unexpected result: {result}")
+
+
+boolean: ParserElement = (
     (Keyword("true") | Keyword("false"))
     .set_name("bool")
-    .set_parse_action(lambda x: x[0].lower() == "true")
+    .set_parse_action(parse_action_function)
 )
 
 null = Keyword("null").set_parse_action(lambda _: [None])

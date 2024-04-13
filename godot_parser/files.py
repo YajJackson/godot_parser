@@ -259,7 +259,9 @@ class GDFile(object):
             raise RuntimeError(
                 "Could not find parent scene resource id(%d)" % root.instance
             )
-        return GDScene.load(gdpath_to_filepath(self.project_root, parent_res.path))
+        scene = GDScene.load(gdpath_to_filepath(self.project_root, parent_res.path))
+        assert isinstance(scene, GDScene)
+        return scene
 
     @contextmanager
     def use_tree(self):
@@ -302,12 +304,12 @@ class GDFile(object):
         return node.section if node is not None else None
 
     @classmethod
-    def parse(cls: Type[GDFileType], contents: str) -> GDFileType:
+    def parse(cls: Type[GDFileType], contents: str):
         """Parse the contents of a Godot file"""
         return cls.from_parser(scene_file.parse_string(contents, parseAll=True))
 
     @classmethod
-    def load(cls: Type[GDFileType], filepath: str) -> GDFileType:
+    def load(cls: Type[GDFileType], filepath: str):
         with open(filepath, "r", encoding="utf-8") as ifile:
             try:
                 file = cls.parse(ifile.read())
@@ -330,7 +332,8 @@ class GDFile(object):
             resource = GDResource.__new__(GDResource)
             resource._sections = list(parse_result)
             return resource
-        return cls(*parse_result)
+
+        raise GodotFileException("Unknown GDFileType %d" % first_section.header.name)
 
     def write(self, filename: str):
         """Writes this to a file"""

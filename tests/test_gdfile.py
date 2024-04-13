@@ -2,6 +2,7 @@ import tempfile
 import unittest
 
 from godot_parser import GDFile, GDObject, GDResource, GDResourceSection, GDScene, Node
+from godot_parser.sections import GDExtResourceSection, GDSubResourceSection
 
 
 class TestGDFile(unittest.TestCase):
@@ -174,10 +175,15 @@ visible = false
         node["texture_pool"] = GDObject("ResourcePool", res2.reference)
 
         s = scene.find_section(path="res://Res.tscn")
+        assert s is not None
+
         scene.remove_section(s)
         scene.renumber_resource_ids()
 
         s = scene.find_section("ext_resource")
+        assert s is not None
+        assert isinstance(s, GDExtResourceSection)
+
         self.assertEqual(s.id, 1)
         self.assertEqual(node["texture"], s.reference)
         self.assertEqual(node["textures"][0], s.reference)
@@ -187,7 +193,7 @@ visible = false
     def test_remove_unused_resource(self):
         """Can remove unused resources"""
         scene = GDScene()
-        res = scene.add_ext_resource("res://Res.tscn", "PackedScene")
+        scene.add_ext_resource("res://Res.tscn", "PackedScene")
         scene.remove_unused_resources()
         resources = scene.get_sections("ext_resource")
         self.assertEqual(len(resources), 0)
@@ -203,10 +209,15 @@ visible = false
         scene.add_section(resource)
 
         s = scene.find_sub_resource(type="CircleShape2D")
+        assert s is not None
+
         scene.remove_section(s)
         scene.renumber_resource_ids()
 
         s = scene.find_section("sub_resource")
+        assert s is not None
+        assert isinstance(s, GDSubResourceSection)
+
         self.assertEqual(s.id, 1)
         self.assertEqual(resource["shape"], s.reference)
 
@@ -241,5 +252,7 @@ visible = false
         s2 = GDScene(GDResourceSection())
         self.assertEqual(s1, s2)
         resource = s1.find_section("resource")
+        assert resource is not None
+
         resource["key"] = "value"
         self.assertNotEqual(s1, s2)

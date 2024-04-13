@@ -329,6 +329,7 @@ def _load_parent_scene(root: Node, file: GDFile):
     parent_file: GDFile = file.load_parent_scene()
     parent_tree = Tree.build(parent_file)
     # Transfer parent scene's children to this scene
+    assert parent_tree.root is not None, "Parent scene has no root node"
     for child in parent_tree.root.get_children():
         root.add_child(child)
     # Mark the entire parent tree as inherited
