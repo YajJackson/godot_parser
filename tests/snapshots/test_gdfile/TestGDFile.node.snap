@@ -1,0 +1,5 @@
+[gd_scene load_steps=1 format=2]
+
+[node name="RootNode" type="Node2D"]
+
+[node name="Child" type="Area2D" parent="."]
