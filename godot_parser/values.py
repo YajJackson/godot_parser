@@ -41,6 +41,7 @@ primitive = (
     null | QuotedString('"', escChar="\\", multiline=True) | boolean | common.number
 )
 value = Forward()
+non_generic_types = Forward()
 
 # Vector2( 1, 2 )
 obj_type = (
@@ -69,6 +70,23 @@ dict_ = (
     .set_parse_action(lambda d: {k: v for k, v in d})
 )
 
-# Exports
+non_generic_types <<= primitive | list_ | dict_ | obj_type
 
-value <<= primitive | list_ | dict_ | obj_type
+
+# Handles constructs like Array[Object](...)
+def parse_generic_type(parse_results: ParseResults):
+    toks = parse_results.asList()
+    type_name = toks[0]
+    args = toks[1:]
+    return (type_name, *args)
+
+
+generic_type = (
+    Word(alphas, alphanums + "[]")
+    + Suppress("(")
+    + Opt(DelimitedList(value, delim=","))
+    + Suppress(")")
+).set_parse_action(parse_generic_type)
+
+# Exports
+value <<= non_generic_types | generic_type

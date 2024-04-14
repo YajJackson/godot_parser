@@ -8,6 +8,7 @@ from beartype.door import is_bearable
 
 from godot_parser import GDFile, GDObject, GDSection, GDSectionHeader, Vector2, parse
 from godot_parser.files import GDFileType
+from tests.snapshot_manager import SnapshotManager
 
 HERE = os.path.dirname(__file__)
 
@@ -119,6 +120,9 @@ TEST_CASES: list[tuple[str, GDFileType]] = [
 
 
 class TestParser(unittest.TestCase):
+
+    snapshot_manager = SnapshotManager()
+
     def _run_test(self, string: str, expected: GDFileType):
         """Run a set of tests"""
         parse_result: Optional[GDFileType] = None
@@ -147,3 +151,12 @@ class TestParser(unittest.TestCase):
         """Run the parsing test cases"""
         for string, expected in TEST_CASES:
             self._run_test(string, expected)
+
+    def test_example_data(self):
+        examples = os.path.join(HERE, "example_scenes")
+        for file in os.listdir(examples):
+            print(f'Parsing {file}')
+            with open(os.path.join(examples, file), "r") as f:
+                content = f.read()
+                parsed = parse(content)
+                self.snapshot_manager.assert_match(str(parsed), f'{file}.parsed')

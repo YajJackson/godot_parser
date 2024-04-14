@@ -4,6 +4,7 @@ from typing import Any, List, Optional, Type, TypeVar
 
 from .objects import ExtResource, SubResource
 from .util import stringify_object
+from .values import value
 
 __all__ = [
     "GDSectionHeader",
@@ -129,15 +130,33 @@ class GDSection(metaclass=GDSectionMeta):
         section.header = header
         section.properties = OrderedDict()
         for k, v in parse_result[1:]:
+            if isinstance(v, tuple):
+                # Handle generic types like ('Array[int]', [1, 5, 3])
+                section[k] = v[1]
             section[k] = v
         return section
+
+    @staticmethod
+    def format_value(value: Any):
+        """Formats the value based on its type, specifically handling generic type tuples."""
+        if (
+            isinstance(value, tuple)
+            and len(value) == 2
+            and isinstance(value[0], str)
+            and isinstance(value[1], list)
+        ):
+            # Handle generic types like ('Array[int]', [1, 5, 3])
+            type_name, elements = value
+            return f"{type_name}({elements})"
+        else:
+            return stringify_object(value)
 
     def __str__(self) -> str:
         ret = str(self.header)
         if self.properties:
             ret += "\n" + "\n".join(
                 [
-                    "%s = %s" % (k, stringify_object(v))
+                    "%s = %s" % (k, self.format_value(v))
                     for k, v in self.properties.items()
                 ]
             )

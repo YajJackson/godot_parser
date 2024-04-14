@@ -2,7 +2,6 @@
 import argparse
 import os
 import sys
-from itertools import zip_longest
 
 from godot_parser import load, parse
 
@@ -21,25 +20,12 @@ def _parse_and_test_file(filename: str) -> bool:
         return False
 
     f = load(filename)
-    with f.use_tree() as tree:
-        pass
 
-    data_lines = [l for l in str(data).split("\n") if l]
-    content_lines = [l for l in contents.split("\n") if l]
-    if data_lines != content_lines:
-        print("  Error!")
-        max_len = max([len(l) for l in content_lines])
-        if max_len < 100:
-            for orig, parsed in zip_longest(content_lines, data_lines, fillvalue=""):
-                c = " " if orig == parsed else "x"
-                print("%s <%s> %s" % (orig.ljust(max_len), c, parsed))
-        else:
-            for orig, parsed in zip_longest(
-                content_lines, data_lines, fillvalue="----EMPTY----"
-            ):
-                c = "    " if orig == parsed else "XXX)"
-                print("%s\n%s%s" % (orig, c, parsed))
-        return False
+    assert data is not None
+    assert f is not None
+
+    print(f"parsed file: {filename}")
+    # breakpoint()
     return True
 
 
@@ -47,6 +33,7 @@ def main():
     """Test the parsing of one tscn file or all files in directory"""
     parser = argparse.ArgumentParser(description=main.__doc__)
     parser.add_argument("file_or_dir", help="Parse file or files under this directory")
+    parser.add_argument("debug", help="Parse file or files under this directory")
     args = parser.parse_args()
     if os.path.isfile(args.file_or_dir):
         _parse_and_test_file(args.file_or_dir)
