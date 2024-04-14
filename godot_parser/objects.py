@@ -1,7 +1,7 @@
 """ Wrappers for Godot's non-primitive object types """
 
 from functools import partial
-from typing import Type, TypeVar
+from typing import TypeVar
 
 from .util import stringify_object
 
@@ -49,10 +49,11 @@ class GDObject(metaclass=GDObjectMeta):
         self.args = list(args)
 
     @classmethod
-    def from_parser(cls: Type[GDObjectType], parse_result) -> GDObjectType:
-        name = parse_result[0]
-        factory = GD_OBJECT_REGISTRY.get(name, partial(GDObject, name))
-        return factory(*parse_result[1:])
+    def from_parser(cls, parse_result):
+        type_name = parse_result[0]
+        args = parse_result[1:] if len(parse_result) > 1 else []
+        factory = GD_OBJECT_REGISTRY.get(type_name, partial(GDObject, type_name))
+        return factory(*args)
 
     def __str__(self) -> str:
         return "%s( %s )" % (

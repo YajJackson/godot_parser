@@ -302,7 +302,8 @@ class GDFile(object):
     @classmethod
     def parse(cls, contents: str):
         """Parse the contents of a Godot file"""
-        return cls.from_parser(scene_file.parse_string(contents, parseAll=True))
+        parsed_scene = scene_file.parse_string(contents, parseAll=True)
+        return cls.from_parser(parsed_scene)
 
     @classmethod
     def load(cls, filepath: str):
